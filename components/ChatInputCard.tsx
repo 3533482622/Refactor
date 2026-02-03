@@ -155,9 +155,24 @@ export function ChatInputCard({
             <Button onClick={onStop} className="min-h-[44px]">停止</Button>
           )}
         </Space>
-        {/* Mobile row 3, desktop middle: [手机端上传] 模型, 模式, 联网, Badge */}
-        <Space wrap className="order-3 desktop:order-2">
-          <span className="desktop:hidden flex items-center gap-0">
+        {/* Mobile: 模型在左，上传/拍照在右；Desktop: 上传+拍照 模型 模式 联网 Badge */}
+        <Space wrap className="order-3 desktop:order-2 items-center" size="middle">
+          <Select
+            value={model}
+            onChange={(value) => setModel(value)}
+            className="flex-1 min-w-0 max-[1084px]:!min-w-[100px] max-[1084px]:!text-sm desktop:w-[220px] desktop:!min-w-[220px] desktop:flex-none"
+            style={{ minWidth: 140 }}
+            options={modelOptions}
+            optionRender={(option) => (
+              <div>
+                <Text>{option.data.label}</Text>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  {option.data.desc}
+                </div>
+              </div>
+            )}
+          />
+          <span className="desktop:hidden flex items-center justify-end gap-0 shrink-0">
             <Tooltip title={isAuthed ? "上传图片或文档" : "请先登录"}>
               <Upload
                 accept={mobileUploadAccept}
@@ -173,7 +188,7 @@ export function ChatInputCard({
                   type="text"
                   icon={<UploadOutlined />}
                   disabled={!isAuthed}
-                  className="min-h-[44px] min-w-[44px]"
+                  className="min-h-[36px] min-w-[36px] max-[1084px]:!min-h-[32px] max-[1084px]:!min-w-[32px]"
                 />
               </Upload>
             </Tooltip>
@@ -182,7 +197,7 @@ export function ChatInputCard({
                 type="text"
                 icon={<CameraOutlined />}
                 disabled={!isAuthed}
-                className="min-h-[44px] min-w-[44px]"
+                className="min-h-[36px] min-w-[36px] max-[1084px]:!min-h-[32px] max-[1084px]:!min-w-[32px]"
                 onClick={() => cameraInputRef.current?.click()}
               />
             </Tooltip>
@@ -201,21 +216,6 @@ export function ChatInputCard({
               }}
             />
           </span>
-          <Select
-            value={model}
-            onChange={(value) => setModel(value)}
-            className="w-full desktop:w-[220px] max-w-[220px]"
-            style={{ minWidth: 140 }}
-            options={modelOptions}
-            optionRender={(option) => (
-              <div>
-                <Text>{option.data.label}</Text>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  {option.data.desc}
-                </div>
-              </div>
-            )}
-          />
           <Segmented
             value={mode}
             onChange={(value) => setMode(value as ModeOption)}

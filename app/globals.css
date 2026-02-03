@@ -213,7 +213,7 @@ body {
   font-size: 13px;
 }
 
-.ant-list-item-action{
+.ant-list-item-action {
   margin-left: 5px !important;
 }
 
@@ -223,6 +223,7 @@ body {
   text-decoration: underline;
   word-break: break-all;
 }
+
 .chat-bubble.user .chat-message-url:hover {
   color: #fff;
   text-decoration: underline;
@@ -233,6 +234,7 @@ body {
   color: #5b5ce2;
   text-decoration: none;
 }
+
 .chat-input-url:hover {
   text-decoration: underline;
 }
@@ -242,6 +244,7 @@ body {
 .chat-doc-tag-inline {
   font-size: 12px;
 }
+
 .chat-bubble.user .chat-doc-tag-inline {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
@@ -285,5 +288,21 @@ body {
 
   .chat-input-mobile-send-wrap textarea {
     padding-right: 48px;
+  }
+
+  .chat-input-card .ant-card-body {
+    padding: 12px;
+  }
+
+  .chat-input-card .ant-segmented {
+    font-size: 12px;
+  }
+
+  .chat-input-card .ant-segmented-item {
+    padding: 2px 8px;
+  }
+
+  .chat-input-card .ant-select-single .ant-select-selector {
+    font-size: 13px;
   }
 }
