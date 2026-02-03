@@ -31,10 +31,10 @@ export type HistoryItem = {
   model?: string;
 };
 
-// export const API_URL = "https://9a483b180cb3.ngrok-free.app/api/ai_talk/Doubao";
-// export const AUTH_API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://9a483b180cb3.ngrok-free.app";
-export const API_URL = "http://localhost:3001/api/ai_talk/Doubao";
-export const AUTH_API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
+export const API_URL = "https://9a483b180cb3.ngrok-free.app/api/ai_talk/Doubao";
+export const AUTH_API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://9a483b180cb3.ngrok-free.app";
+// export const API_URL = "http://localhost:3001/api/ai_talk/Doubao";
+// export const AUTH_API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
 export const URL_REGEX = /https?:\/\/[^\s]+/gi;
 export const MAX_URLS = 3;
