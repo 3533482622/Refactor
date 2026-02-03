@@ -71,6 +71,12 @@ export default function HomePage() {
 
   const modeLabel = mode === "deep" ? "深度" : "快速";
 
+  // 仅 doubao-seed-1-6-vision 支持深度+联网同时使用，切换为其他模型时关闭联网
+  const handleModelChange = (value: ModelOption) => {
+    if (value !== "doubao-seed-1-6-vision") setUseWebSearch(false);
+    setModel(value);
+  };
+
   const isDocFile = (file: File) =>
     DOC_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
 
@@ -231,6 +237,7 @@ export default function HomePage() {
         }
         const reader = new FileReader();
         reader.onload = () => {
+          setUseWebSearch(false);
           setImages((prev) => [
             ...prev,
             { uid: file.uid, name: file.name, url: String(reader.result) },
@@ -441,6 +448,9 @@ export default function HomePage() {
       ) {
         window.localStorage.setItem("chatConversationId", responseConversationId);
         setConversationId(responseConversationId);
+      }
+      if (response.headers.get("x-web-search-disabled") === "image") {
+        antdMessage.info("有图片时已自动关闭联网");
       }
 
       const reader = response.body.getReader();
@@ -911,7 +921,7 @@ export default function HomePage() {
               attachedFiles={attachedFiles}
               setAttachedFiles={setAttachedFiles}
               model={model}
-              setModel={setModel}
+              setModel={handleModelChange}
               mode={mode}
               setMode={setMode}
               useWebSearch={useWebSearch}
@@ -927,9 +937,11 @@ export default function HomePage() {
               isDraggingOver={isDraggingOver}
               setIsDraggingOver={setIsDraggingOver}
               extractUrlsFromText={extractUrlsFromText}
+              hasImages={images.length > 0}
               onPasteImage={(file) => {
                 const reader = new FileReader();
                 reader.onload = () => {
+                  setUseWebSearch(false);
                   setImages((prev) => [
                     ...prev,
                     {

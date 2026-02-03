@@ -44,6 +44,8 @@ export interface ChatInputCardProps {
   setIsDraggingOver: (value: boolean) => void;
   extractUrlsFromText: (text: string) => string[];
   onPasteImage?: (file: File) => void;
+  /** 当前输入是否包含图片（有图片时不支持联网） */
+  hasImages?: boolean;
 }
 
 export function ChatInputCard({
@@ -69,8 +71,15 @@ export function ChatInputCard({
   setIsDraggingOver,
   extractUrlsFromText,
   onPasteImage,
+  hasImages = false,
 }: ChatInputCardProps) {
   const detectedUrls = extractUrlsFromText(input);
+  const webSearchDisabled = model !== "doubao-seed-1-6-vision" || hasImages;
+  const webSearchTooltip = hasImages
+    ? "有图片时不支持联网"
+    : model === "doubao-seed-1-6-vision"
+      ? "联网搜索（仅当前模型支持与深度思考同时使用）"
+      : "仅 doubao-seed-1-6-vision 支持深度与联网同时使用";
 
   return (
     <Card
@@ -135,13 +144,18 @@ export function ChatInputCard({
             ]}
           />
           <Space size={8}>
-            <Text type="secondary">联网</Text>
-            <Switch
-              checked={useWebSearch}
-              onChange={setUseWebSearch}
-              checkedChildren="开"
-              unCheckedChildren="关"
-            />
+            <Tooltip title={webSearchTooltip}>
+              <Space size={8}>
+                <Text type="secondary">联网</Text>
+                <Switch
+                  checked={useWebSearch}
+                  onChange={setUseWebSearch}
+                  checkedChildren="开"
+                  unCheckedChildren="关"
+                  disabled={webSearchDisabled}
+                />
+              </Space>
+            </Tooltip>
           </Space>
           <Badge status={isStreaming ? "processing" : "default"} text="流式输出" />
         </Space>
