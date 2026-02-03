@@ -25,7 +25,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import type { AttachedDoc, ModelOption, ModeOption, SelectedImage } from "@/lib/chat-types";
-import { modelOptions, DOC_ACCEPT } from "@/lib/chat-types";
+import { modelOptions } from "@/lib/chat-types";
 
 const { Text } = Typography;
 
@@ -85,7 +85,8 @@ export function ChatInputCard({
   onMobileFileSelect,
 }: ChatInputCardProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const mobileAccept = `image/*,${DOC_ACCEPT}`;
+  /* 使用 */* 让手机端弹出「文件/浏览」选择器而非仅相册，选完后仍按类型校验 */
+  const mobileUploadAccept = "*/*";
   const hasContent = !!input.trim() || attachedFiles.length > 0 || hasImages;
   const showMobileSendOrStop = hasContent || isStreaming;
   const detectedUrls = extractUrlsFromText(input);
@@ -159,7 +160,7 @@ export function ChatInputCard({
           <span className="desktop:hidden flex items-center gap-0">
             <Tooltip title={isAuthed ? "上传图片或文档" : "请先登录"}>
               <Upload
-                accept={mobileAccept}
+                accept={mobileUploadAccept}
                 multiple
                 showUploadList={false}
                 disabled={!isAuthed}
