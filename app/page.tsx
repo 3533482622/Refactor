@@ -1020,12 +1020,12 @@ export default function HomePage() {
                       },
                       ...(isAuthed && remainingQuota !== null
                         ? [
-                            {
-                              key: "quota",
-                              label: `剩余 ${remainingQuota} 次`,
-                              disabled: true,
-                            },
-                          ]
+                          {
+                            key: "quota",
+                            label: `剩余 ${remainingQuota} 次`,
+                            disabled: true,
+                          },
+                        ]
                         : []),
                       { type: "divider" },
                       {
