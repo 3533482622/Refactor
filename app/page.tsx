@@ -59,7 +59,7 @@ export default function HomePage() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [authForm] = Form.useForm();
-  const [authMode, setAuthMode] = useState<"password" | "email">("password");
+  const [authMode, setAuthMode] = useState<"password" | "email" | "register">("password");
   const [authLoading, setAuthLoading] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
@@ -806,6 +806,40 @@ export default function HomePage() {
     }
   };
 
+  const handleRegister = async (values: {
+    username: string;
+    email: string;
+    verificationCode: string;
+    password: string;
+    confirmPassword: string;
+  }) => {
+    setAuthLoading(true);
+    try {
+      const resp = await fetch(`${AUTH_API_BASE}/api/user/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: values.username.trim(),
+          email: values.email.trim().toLowerCase(),
+          password: values.password,
+          verificationCode: values.verificationCode.trim(),
+        }),
+      });
+      const result = await resp.json();
+      if (!resp.ok || result.code !== 200) {
+        throw new Error(result.msg || "注册失败");
+      }
+      antdMessage.success("注册成功，请使用密码登录");
+      authForm.resetFields();
+      setAuthMode("password");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "注册失败";
+      antdMessage.error(msg);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     clearAuthCookie();
     setIsAuthed(false);
@@ -834,6 +868,7 @@ export default function HomePage() {
         setAuthMode={setAuthMode}
         onPasswordLogin={handlePasswordLogin}
         onEmailLogin={handleEmailLogin}
+        onRegister={handleRegister}
         onSendCode={handleSendEmailCode}
         authLoading={authLoading}
         emailCountdown={emailCountdown}
