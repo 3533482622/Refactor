@@ -5,8 +5,9 @@
     "scripts": {
         "dev": "next dev --port 3002",
         "build": "next build",
-        "start": "next start",
-        "lint": "next lint"
+        "start": "concurrently -n backend,frontend \"npm run server\" \"next start\"",
+        "lint": "next lint",
+        "server": "cd backend && npm run server"
     },
     "dependencies": {
         "@ant-design/icons": "latest",
@@ -25,6 +26,7 @@
         "streamdown": "^2.1.0"
     },
     "devDependencies": {
+        "concurrently": "^9.1.0",
         "@types/node": "latest",
         "@types/react": "latest",
         "@types/react-dom": "latest",
