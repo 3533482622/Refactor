@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import {
   Badge,
   Button,
@@ -15,9 +16,16 @@ import {
   Upload,
 } from "antd";
 import type { UploadProps } from "antd";
-import { CloudUploadOutlined, FileTextOutlined, SendOutlined } from "@ant-design/icons";
+import {
+  CameraOutlined,
+  CloudUploadOutlined,
+  FileTextOutlined,
+  SendOutlined,
+  StopOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import type { AttachedDoc, ModelOption, ModeOption, SelectedImage } from "@/lib/chat-types";
-import { modelOptions } from "@/lib/chat-types";
+import { modelOptions, DOC_ACCEPT } from "@/lib/chat-types";
 
 const { Text } = Typography;
 
@@ -46,6 +54,8 @@ export interface ChatInputCardProps {
   onPasteImage?: (file: File) => void;
   /** 当前输入是否包含图片（有图片时不支持联网） */
   hasImages?: boolean;
+  /** 手机端：从设备选择文件（图片+文档）后回调，每选一个文件调用一次 */
+  onMobileFileSelect?: (file: File) => void;
 }
 
 export function ChatInputCard({
@@ -72,7 +82,12 @@ export function ChatInputCard({
   extractUrlsFromText,
   onPasteImage,
   hasImages = false,
+  onMobileFileSelect,
 }: ChatInputCardProps) {
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const mobileAccept = `image/*,${DOC_ACCEPT}`;
+  const hasContent = !!input.trim() || attachedFiles.length > 0 || hasImages;
+  const showMobileSendOrStop = hasContent || isStreaming;
   const detectedUrls = extractUrlsFromText(input);
   const webSearchDisabled = model !== "doubao-seed-1-6-vision" || hasImages;
   const webSearchTooltip = hasImages
@@ -99,11 +114,12 @@ export function ChatInputCard({
       }}
       onDrop={onDrop}
     >
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between" }}>
-        <Space wrap>
+      <div className="flex flex-col gap-3 desktop:flex-row desktop:flex-wrap desktop:justify-between desktop:items-center">
+        {/* Desktop: 图片, 文档. Mobile: hidden (use single upload icon next to model) */}
+        <Space wrap className="order-1 hidden desktop:flex">
           <Tooltip title={isAuthed ? "上传图片" : "请先登录"}>
             <Upload {...uploadProps} disabled={!isAuthed}>
-              <Button icon={<CloudUploadOutlined />} disabled={!isAuthed}>
+              <Button icon={<CloudUploadOutlined />} disabled={!isAuthed} className="min-h-[44px] min-w-[44px]">
                 图片
               </Button>
             </Upload>
@@ -116,15 +132,79 @@ export function ChatInputCard({
             }
           >
             <Upload {...docUploadProps} disabled={!isAuthed}>
-              <Button icon={<FileTextOutlined />} disabled={!isAuthed}>
+              <Button icon={<FileTextOutlined />} disabled={!isAuthed} className="min-h-[44px] min-w-[44px]">
                 文档
               </Button>
             </Upload>
           </Tooltip>
+        </Space>
+        {/* Desktop: 发送, 停止. Mobile: hidden (use small icon in textarea corner) */}
+        <Space className="order-2 desktop:order-3 desktop:ml-auto hidden desktop:flex">
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            loading={isStreaming}
+            onClick={onSend}
+            disabled={!isAuthed || (remainingQuota !== null && remainingQuota <= 0)}
+            className="min-h-[44px]"
+          >
+            发送
+          </Button>
+          {isStreaming && (
+            <Button onClick={onStop} className="min-h-[44px]">停止</Button>
+          )}
+        </Space>
+        {/* Mobile row 3, desktop middle: [手机端上传] 模型, 模式, 联网, Badge */}
+        <Space wrap className="order-3 desktop:order-2">
+          <span className="desktop:hidden flex items-center gap-0">
+            <Tooltip title={isAuthed ? "上传图片或文档" : "请先登录"}>
+              <Upload
+                accept={mobileAccept}
+                multiple
+                showUploadList={false}
+                disabled={!isAuthed}
+                beforeUpload={(file) => {
+                  onMobileFileSelect?.(file);
+                  return false;
+                }}
+              >
+                <Button
+                  type="text"
+                  icon={<UploadOutlined />}
+                  disabled={!isAuthed}
+                  className="min-h-[44px] min-w-[44px]"
+                />
+              </Upload>
+            </Tooltip>
+            <Tooltip title={isAuthed ? "拍照" : "请先登录"}>
+              <Button
+                type="text"
+                icon={<CameraOutlined />}
+                disabled={!isAuthed}
+                className="min-h-[44px] min-w-[44px]"
+                onClick={() => cameraInputRef.current?.click()}
+              />
+            </Tooltip>
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  onMobileFileSelect?.(file);
+                  e.target.value = "";
+                }
+              }}
+            />
+          </span>
           <Select
             value={model}
             onChange={(value) => setModel(value)}
-            style={{ width: 220 }}
+            className="w-full desktop:w-[220px] max-w-[220px]"
+            style={{ minWidth: 140 }}
             options={modelOptions}
             optionRender={(option) => (
               <div>
@@ -157,21 +237,9 @@ export function ChatInputCard({
               </Space>
             </Tooltip>
           </Space>
-          <Badge status={isStreaming ? "processing" : "default"} text="流式输出" />
-        </Space>
-        <Space>
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            loading={isStreaming}
-            onClick={onSend}
-            disabled={!isAuthed || (remainingQuota !== null && remainingQuota <= 0)}
-          >
-            发送
-          </Button>
-          {isStreaming && (
-            <Button onClick={onStop}>停止</Button>
-          )}
+          <span className="hidden desktop:inline-flex">
+            <Badge status={isStreaming ? "processing" : "default"} text="流式输出" />
+          </span>
         </Space>
       </div>
 
@@ -215,7 +283,7 @@ export function ChatInputCard({
           )}
         </div>
       )}
-      <div style={{ marginTop: 12 }}>
+      <div className="relative chat-input-mobile-send-wrap" style={{ marginTop: 12 }}>
         <Input.TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -243,6 +311,33 @@ export function ChatInputCard({
             }
           }}
         />
+        {showMobileSendOrStop && (
+          <div className="absolute right-2 bottom-2 desktop:hidden flex flex-col gap-0">
+            {isStreaming ? (
+              <Tooltip title="停止">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<StopOutlined />}
+                  onClick={onStop}
+                  className="!min-h-[32px] !min-w-[32px] !p-0"
+                />
+              </Tooltip>
+            ) : (
+              <Tooltip title="发送">
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<SendOutlined />}
+                  onClick={onSend}
+                  disabled={!isAuthed || (remainingQuota !== null && remainingQuota <= 0)}
+                  className="!min-h-[32px] !min-w-[32px] !p-0"
+                />
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );

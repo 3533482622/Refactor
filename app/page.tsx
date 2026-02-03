@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Button,
+  Dropdown,
+  Drawer,
   Form,
   Layout,
   Space,
@@ -12,7 +14,7 @@ import {
   message as antdMessage,
 } from "antd";
 import type { UploadFile, UploadProps } from "antd";
-import { UserOutlined } from "@ant-design/icons";
+import { MenuOutlined, UserOutlined } from "@ant-design/icons";
 import { AuthModal } from "@/components/AuthModal";
 import { ChatInputCard } from "@/components/ChatInputCard";
 import { ChatMessageItem } from "@/components/ChatMessageItem";
@@ -68,6 +70,16 @@ export default function HomePage() {
   const [emailCountdown, setEmailCountdown] = useState(0);
   const [sendingCode, setSendingCode] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1084px)");
+    const handler = () => setIsMobile(mql.matches);
+    handler();
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   const modeLabel = mode === "deep" ? "深度" : "快速";
 
@@ -129,6 +141,51 @@ export default function HomePage() {
       }
       antdMessage.warning(`暂不支持「${file.name}」，仅支持图片或文档（PDF/Word/Excel 等）`);
     });
+  };
+
+  const handleMobileFileSelect = (file: File) => {
+    if (!isAuthed) return;
+    const isImage = file.type.startsWith("image/");
+    if (isImage) {
+      setUseWebSearch(false);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setImages((prev) => [
+          ...prev,
+          {
+            uid: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: file.name,
+            url: String(reader.result),
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+    if (isDocFile(file)) {
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        antdMessage.warning(`「${file.name}」超过 10MB，已跳过`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string)?.split(",")?.[1] ?? "";
+        if (!base64) return;
+        setAttachedFiles((prev) => [
+          ...prev,
+          {
+            uid: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: file.name,
+            type: file.type,
+            contentBase64: base64,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+    antdMessage.warning(`暂不支持「${file.name}」，仅支持图片或文档（PDF/Word/Excel 等）`);
   };
 
   useEffect(() => {
@@ -643,6 +700,7 @@ export default function HomePage() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem("chatConversationId", id);
       }
+      if (isMobile) setSidebarOpen(false);
     } catch (error) {
       console.error("历史会话加载失败:", error);
     }
@@ -668,6 +726,7 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("chatConversationId", newId);
     }
+    if (isMobile) setSidebarOpen(false);
   };
 
   const openTitleEditor = (item: { conversationId: string; title: string }) => {
@@ -875,49 +934,130 @@ export default function HomePage() {
         sendingCode={sendingCode}
       />
       <Layout className="chat-layout">
-        <Sider
-          width={280}
-          className="chat-sider"
-          breakpoint="lg"
-          collapsedWidth={0}
-        >
-          <ChatSidebar
-            model={model}
-            mode={mode}
-            modeLabel={modeLabel}
-            historyItems={historyItems}
-            historyLoading={historyLoading}
-            historySearch={historySearch}
-            setHistorySearch={setHistorySearch}
-            onNewConversation={handleNewConversation}
-            onLoadConversation={loadConversation}
-            onEditTitle={openTitleEditor}
-            onDeleteHistory={handleDeleteHistory}
-            formatHistoryTime={formatHistoryTime}
-            apiUrl={API_URL}
-          />
-        </Sider>
+        {!isMobile && (
+          <Sider width={280} className="chat-sider">
+            <ChatSidebar
+              model={model}
+              mode={mode}
+              modeLabel={modeLabel}
+              historyItems={historyItems}
+              historyLoading={historyLoading}
+              historySearch={historySearch}
+              setHistorySearch={setHistorySearch}
+              onNewConversation={handleNewConversation}
+              onLoadConversation={loadConversation}
+              onEditTitle={openTitleEditor}
+              onDeleteHistory={handleDeleteHistory}
+              formatHistoryTime={formatHistoryTime}
+              apiUrl={API_URL}
+              hideModelCard={false}
+            />
+          </Sider>
+        )}
+
+        {isMobile && (
+          <Drawer
+            title="历史对话"
+            placement="left"
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            width={280}
+          >
+            <ChatSidebar
+              model={model}
+              mode={mode}
+              modeLabel={modeLabel}
+              historyItems={historyItems}
+              historyLoading={historyLoading}
+              historySearch={historySearch}
+              setHistorySearch={setHistorySearch}
+              onNewConversation={handleNewConversation}
+              onLoadConversation={loadConversation}
+              onEditTitle={openTitleEditor}
+              onDeleteHistory={handleDeleteHistory}
+              formatHistoryTime={formatHistoryTime}
+              apiUrl={API_URL}
+              hideModelCard={true}
+            />
+          </Drawer>
+        )}
 
         <Layout>
           <Header className="chat-header">
-            <div>
-              <Title level={5} style={{ margin: 0 }}>
-                AI 对话
-              </Title>
-              <Text type="secondary">支持图文、流式输出与富文本</Text>
+            <div className="flex items-center gap-2">
+              {isMobile && (
+                <Button
+                  type="text"
+                  icon={<MenuOutlined />}
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="打开历史"
+                />
+              )}
+              <div className={isMobile ? "hidden" : ""}>
+                <Title level={5} style={{ margin: 0 }}>
+                  AI 对话
+                </Title>
+                <Text type="secondary" className="hidden desktop:inline">
+                  支持图文、流式输出与富文本
+                </Text>
+              </div>
             </div>
             <div className="chat-user-area">
-              <div className="chat-user-meta">
-                <div className="chat-user-name">{authUser?.username || "未登录"}</div>
-                <div className="chat-user-email">{authUser?.email || "请先登录"}</div>
-                {isAuthed && remainingQuota !== null && (
-                  <div className="chat-user-quota">剩余 {remainingQuota} 次</div>
-                )}
-              </div>
-              <Avatar size={36} icon={<UserOutlined />} />
-              <Button size="small" onClick={handleLogout} disabled={!isAuthed}>
-                退出登录
-              </Button>
+              {isMobile ? (
+                <Dropdown
+                  menu={{
+                    items: [
+                      {
+                        key: "user",
+                        label: authUser?.username || "未登录",
+                        disabled: true,
+                      },
+                      {
+                        key: "email",
+                        label: authUser?.email || "请先登录",
+                        disabled: true,
+                      },
+                      ...(isAuthed && remainingQuota !== null
+                        ? [
+                            {
+                              key: "quota",
+                              label: `剩余 ${remainingQuota} 次`,
+                              disabled: true,
+                            },
+                          ]
+                        : []),
+                      { type: "divider" },
+                      {
+                        key: "logout",
+                        label: "退出登录",
+                        danger: true,
+                        disabled: !isAuthed,
+                        onClick: handleLogout,
+                      },
+                    ],
+                  }}
+                  trigger={["click"]}
+                  placement="bottomRight"
+                >
+                  <span className="cursor-pointer" style={{ lineHeight: 0 }}>
+                    <Avatar size={36} icon={<UserOutlined />} />
+                  </span>
+                </Dropdown>
+              ) : (
+                <>
+                  <div className="chat-user-meta">
+                    <div className="chat-user-name">{authUser?.username || "未登录"}</div>
+                    <div className="chat-user-email">{authUser?.email || "请先登录"}</div>
+                    {isAuthed && remainingQuota !== null && (
+                      <div className="chat-user-quota">剩余 {remainingQuota} 次</div>
+                    )}
+                  </div>
+                  <Avatar size={36} icon={<UserOutlined />} />
+                  <Button size="small" onClick={handleLogout} disabled={!isAuthed}>
+                    退出登录
+                  </Button>
+                </>
+              )}
             </div>
           </Header>
 
@@ -988,6 +1128,7 @@ export default function HomePage() {
                 };
                 reader.readAsDataURL(file);
               }}
+              onMobileFileSelect={handleMobileFileSelect}
             />
           </Content>
         </Layout>

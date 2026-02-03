@@ -21,6 +21,8 @@ export interface ChatSidebarProps {
   onDeleteHistory: (id: string) => void;
   formatHistoryTime: (value?: string | { $$date?: number } | number) => string;
   apiUrl: string;
+  /** When true (e.g. mobile drawer), hide the "当前模型" card */
+  hideModelCard?: boolean;
 }
 
 export function ChatSidebar({
@@ -37,6 +39,7 @@ export function ChatSidebar({
   onDeleteHistory,
   formatHistoryTime,
   apiUrl,
+  hideModelCard = false,
 }: ChatSidebarProps) {
   return (
     <div className="chat-sider-inner" style={{ padding: 24 }}>
@@ -47,15 +50,17 @@ export function ChatSidebar({
         <Text type="secondary">日常对话 · 代码问答 · 拍照搜题</Text>
       </div>
 
-      <Card size="small">
-        <Text type="secondary">当前模型</Text>
-        <div style={{ marginTop: 8 }}>
-          <Text strong>{model}</Text>
-        </div>
-        <Tag style={{ marginTop: 12 }} color={mode === "deep" ? "purple" : "blue"}>
-          {modeLabel} 模式
-        </Tag>
-      </Card>
+      {!hideModelCard && (
+        <Card size="small">
+          <Text type="secondary">当前模型</Text>
+          <div style={{ marginTop: 8 }}>
+            <Text strong>{model}</Text>
+          </div>
+          <Tag style={{ marginTop: 12 }} color={mode === "deep" ? "purple" : "blue"}>
+            {modeLabel} 模式
+          </Tag>
+        </Card>
+      )}
 
       <Card
         size="small"

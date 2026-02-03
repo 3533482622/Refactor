@@ -247,3 +247,43 @@ body {
   color: #fff;
   border-color: rgba(255, 255, 255, 0.4);
 }
+
+/* Mobile: max-width 1084px (Huawei Nova 12 portrait) */
+@media (max-width: 1084px) {
+  .chat-header {
+    padding: 12px 16px;
+  }
+
+  .chat-user-area {
+    transform: none;
+  }
+
+  .chat-content {
+    padding: 12px 16px 16px;
+  }
+
+  .chat-list {
+    gap: 12px;
+  }
+
+  .chat-row {
+    gap: 8px;
+  }
+
+  .chat-bubble {
+    max-width: 85%;
+    padding: 10px 12px;
+  }
+
+  .chat-bubble.assistant {
+    max-width: 85%;
+  }
+
+  .chat-images img {
+    height: 100px;
+  }
+
+  .chat-input-mobile-send-wrap textarea {
+    padding-right: 48px;
+  }
+}

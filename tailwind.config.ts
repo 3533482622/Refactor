@@ -7,7 +7,11 @@ const config: Config = {
     "./node_modules/streamdown/dist/*.js",
   ],
   theme: {
-    extend: {},
+    extend: {
+      screens: {
+        desktop: "1085px",
+      },
+    },
   },
   plugins: [],
 };

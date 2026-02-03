@@ -104,7 +104,7 @@ export function ChatMessageItem({
             )}
           </>
         ) : msg.id === editTargetId ? (
-          <div style={{ minWidth: 260 }}>
+          <div className="w-full min-w-0 desktop:min-w-[260px]">
             <Input.TextArea
               value={inlineEditText}
               onChange={(e) => setInlineEditText(e.target.value)}
@@ -147,6 +147,7 @@ export function ChatMessageItem({
                     size="small"
                     icon={<EditOutlined />}
                     onClick={() => onEditLast(msg)}
+                    className="min-h-[44px] min-w-[44px]"
                   />
                 </Tooltip>
               )}
