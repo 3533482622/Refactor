@@ -85,7 +85,7 @@ export function ChatInputCard({
   onMobileFileSelect,
 }: ChatInputCardProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  /* 使用 */* 让手机端弹出「文件/浏览」选择器而非仅相册，选完后仍按类型校验 */
+  // 使用 */* 让手机端弹出文件/浏览选择器而非仅相册，选完后仍按类型校验
   const mobileUploadAccept = "*/*";
   const hasContent = !!input.trim() || attachedFiles.length > 0 || hasImages;
   const showMobileSendOrStop = hasContent || isStreaming;
