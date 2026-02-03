@@ -3,99 +3,54 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
-  Badge,
   Button,
-  Card,
-  Empty,
   Form,
-  Input,
   Layout,
-  List,
-  Modal,
-  Popconfirm,
-  Segmented,
-  Select,
   Space,
-  Spin,
-  Tag,
-  Tooltip,
   Typography,
   Upload,
   message as antdMessage,
 } from "antd";
 import type { UploadFile, UploadProps } from "antd";
+import { UserOutlined } from "@ant-design/icons";
+import { AuthModal } from "@/components/AuthModal";
+import { ChatInputCard } from "@/components/ChatInputCard";
+import { ChatMessageItem } from "@/components/ChatMessageItem";
+import { ChatSidebar } from "@/components/ChatSidebar";
+import { TitleEditModal } from "@/components/TitleEditModal";
 import {
-  CloudUploadOutlined,
-  CodeOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  PictureOutlined,
-  SendOutlined,
-  ThunderboltOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
-import { Response } from "../components/ai-elements/response";
-
-type ModelOption = "doubao-seed-1-6-vision" | "doubao-seed-code" | "doubao-seed-1-6";
-type ModeOption = "deep" | "fast";
-
-type SelectedImage = {
-  uid: string;
-  name: string;
-  url: string;
-};
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  images?: SelectedImage[];
-};
-
-const API_URL = "http://localhost:3001/api/ai_talk/Doubao";
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
-
-const getCookieValue = (name: string) => {
-  if (typeof document === "undefined") return "";
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : "";
-};
-
-const setAuthCookie = (token: string, expiresAt: number) => {
-  if (typeof document === "undefined") return;
-  const maxAge = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
-  document.cookie = `auth-token=${token}; Path=/; Max-Age=${maxAge}`;
-};
-
-const clearAuthCookie = () => {
-  if (typeof document === "undefined") return;
-  document.cookie = "auth-token=; Path=/; Max-Age=0";
-};
-
-const modelOptions: { label: string; value: ModelOption; desc: string }[] = [
-  { label: "doubao-seed-1-6-vision", value: "doubao-seed-1-6-vision", desc: "通用视觉" },
-  { label: "doubao-seed-code", value: "doubao-seed-code", desc: "代码场景" },
-  { label: "doubao-seed-1-6", value: "doubao-seed-1-6", desc: "通用对话" },
-];
+  API_URL,
+  AUTH_API_BASE,
+  type AttachedDoc,
+  type ChatMessage,
+  DOC_EXTENSIONS,
+  DOC_ACCEPT,
+  type HistoryItem,
+  type ModelOption,
+  type ModeOption,
+  modelOptions,
+  type SelectedImage,
+} from "@/lib/chat-types";
+import { extractUrlsFromText, renderTextWithUrls } from "@/lib/chat-utils";
+import { clearAuthCookie, getCookieValue, setAuthCookie } from "@/lib/auth";
 
 export default function HomePage() {
   const { Sider, Header, Content } = Layout;
   const { Text, Title } = Typography;
   const [model, setModel] = useState<ModelOption>("doubao-seed-1-6-vision");
   const [mode, setMode] = useState<ModeOption>("deep");
+  const [useWebSearch, setUseWebSearch] = useState(true);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [images, setImages] = useState<SelectedImage[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedDoc[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
   const [inlineEditText, setInlineEditText] = useState("");
   const [inlineEditImages, setInlineEditImages] = useState<SelectedImage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [historyItems, setHistoryItems] = useState<
-    { conversationId: string; title: string; updatedAt?: string; model?: string }[]
-  >([]);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [titleModalOpen, setTitleModalOpen] = useState(false);
@@ -109,10 +64,66 @@ export default function HomePage() {
   const [authModalOpen, setAuthModalOpen] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
   const [authUser, setAuthUser] = useState<{ username: string; email: string } | null>(null);
+  const [remainingQuota, setRemainingQuota] = useState<number | null>(null);
   const [emailCountdown, setEmailCountdown] = useState(0);
   const [sendingCode, setSendingCode] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   const modeLabel = mode === "deep" ? "深度" : "快速";
+
+  const isDocFile = (file: File) =>
+    DOC_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
+
+  const handleInputDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    if (!isAuthed) return;
+    const files = e.dataTransfer?.files;
+    if (!files?.length) return;
+    Array.from(files).forEach((file) => {
+      const isImage = file.type.startsWith("image/");
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setImages((prev) => [
+            ...prev,
+            {
+              uid: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              name: file.name,
+              url: String(reader.result),
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      if (isDocFile(file)) {
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+          antdMessage.warning(`「${file.name}」超过 10MB，已跳过`);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string)?.split(",")?.[1] ?? "";
+          if (!base64) return;
+          setAttachedFiles((prev) => [
+            ...prev,
+            {
+              uid: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              name: file.name,
+              type: file.type,
+              contentBase64: base64,
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      antdMessage.warning(`暂不支持「${file.name}」，仅支持图片或文档（PDF/Word/Excel 等）`);
+    });
+  };
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -133,6 +144,7 @@ export default function HomePage() {
           clearAuthCookie();
           setIsAuthed(false);
           setAuthUser(null);
+          setRemainingQuota(null);
           setAuthModalOpen(true);
           return;
         }
@@ -142,9 +154,13 @@ export default function HomePage() {
           username: result.data.username,
           email: result.data.email,
         });
+        setRemainingQuota(
+          result.data.remainingQuota ?? result.data.chatQuota ?? 50
+        );
       } catch {
         setIsAuthed(false);
         setAuthUser(null);
+        setRemainingQuota(null);
         setAuthModalOpen(true);
       }
     };
@@ -230,6 +246,38 @@ export default function HomePage() {
     [images]
   );
 
+  const docUploadProps: UploadProps = useMemo(
+    () => ({
+      multiple: true,
+      showUploadList: false,
+      accept: DOC_ACCEPT,
+      beforeUpload: (file) => {
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+          antdMessage.warning("单个文档不超过 10MB");
+          return Upload.LIST_IGNORE;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string)?.split(",")?.[1] ?? "";
+          if (!base64) return;
+          setAttachedFiles((prev) => [
+            ...prev,
+            {
+              uid: file.uid,
+              name: file.name,
+              type: file.type,
+              contentBase64: base64,
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+        return false;
+      },
+    }),
+    []
+  );
+
   const buildRequestMessages = (history: ChatMessage[]) => {
     return history.map((msg) => {
       if (msg.role === "user") {
@@ -251,6 +299,26 @@ export default function HomePage() {
     });
   };
 
+  const refreshQuota = async () => {
+    const token = getCookieValue("auth-token");
+    if (!token) return;
+    try {
+      const resp = await fetch(`${AUTH_API_BASE}/api/user/validate-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const result = await resp.json();
+      if (resp.ok && result.code === 200) {
+        setRemainingQuota(
+          result.data.remainingQuota ?? result.data.chatQuota ?? 50
+        );
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const startSend = async (params?: {
     text?: string;
     images?: SelectedImage[];
@@ -261,12 +329,17 @@ export default function HomePage() {
       antdMessage.warning("请先登录后再对话");
       return;
     }
+    if (remainingQuota !== null && remainingQuota <= 0) {
+      antdMessage.warning("对话次数已用完");
+      return;
+    }
     const nextText = params?.text ?? input;
     const nextImages = params?.images ?? images;
+    const nextAttached = params?.editMessageId ? [] : attachedFiles;
     const editMessageId = params?.editMessageId ?? null;
 
-    if (!nextText.trim() && nextImages.length === 0) {
-      antdMessage.warning("请输入内容或上传图片");
+    if (!nextText.trim() && nextImages.length === 0 && nextAttached.length === 0) {
+      antdMessage.warning("请输入内容、上传图片或添加文档/链接");
       return;
     }
     const userMessage: ChatMessage = {
@@ -274,12 +347,18 @@ export default function HomePage() {
       role: "user",
       text: nextText.trim(),
       images: nextImages,
+      attachedDocs:
+        nextAttached.length > 0
+          ? nextAttached.map((f) => ({ name: f.name, type: f.type }))
+          : undefined,
     };
     const assistantId = `assistant-${Date.now()}`;
     const assistantMessage: ChatMessage = {
       id: assistantId,
       role: "assistant",
       text: "",
+      reasoning: "",
+      thinkingEnabled: mode === "deep",
     };
     const editIndex = editMessageId
       ? messages.findIndex((msg) => msg.id === editMessageId)
@@ -289,6 +368,7 @@ export default function HomePage() {
     setMessages([...baseHistory, userMessage, assistantMessage]);
     setInput("");
     setImages([]);
+    setAttachedFiles([]);
     setEditTargetId(null);
     setInlineEditText("");
     setInlineEditImages([]);
@@ -309,14 +389,24 @@ export default function HomePage() {
       }
       const token = getCookieValue("auth-token");
 
+      const payloadUrls = extractUrlsFromText(nextText);
+      const payloadFiles = nextAttached.map((f) => ({
+        name: f.name,
+        type: f.type,
+        contentBase64: f.contentBase64,
+      }));
       const payload = {
         model,
+        mode,
+        webSearch: useWebSearch,
         conversationId: activeConversationId,
         stream: true,
         messages: [
           { role: "system", content: `当前模式：${modeLabel}。` },
           ...buildRequestMessages(historyForRequest),
         ],
+        ...(payloadUrls.length > 0 && { urls: payloadUrls }),
+        ...(payloadFiles.length > 0 && { files: payloadFiles }),
       };
 
       const response = await fetch(API_URL, {
@@ -330,8 +420,18 @@ export default function HomePage() {
         signal: controller.signal,
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error(`接口异常：${response.status}`);
+      if (!response.ok) {
+        if (response.status === 403) {
+          const errData = await response.json().catch(() => ({}));
+          antdMessage.warning(errData.msg || "对话次数已用完");
+          await refreshQuota();
+        } else {
+          throw new Error(`接口异常：${response.status}`);
+        }
+        return;
+      }
+      if (!response.body) {
+        throw new Error("接口异常");
       }
       const responseConversationId = response.headers.get("x-conversation-id");
       if (
@@ -365,10 +465,38 @@ export default function HomePage() {
               (json?.type && json.type.includes("response.output_text.delta")
                 ? json?.delta
                 : null);
+            const reasoningDelta =
+              json?.choices?.[0]?.delta?.reasoning_content ||
+              json?.choices?.[0]?.delta?.reasoning ||
+              (json?.type && json.type.includes("response.output_reasoning.delta")
+                ? json?.delta
+                : null);
+            const reasoningDone =
+              json?.choices?.[0]?.message?.reasoning_content ||
+              (json?.type === "response.output_reasoning.done" && typeof json.text === "string"
+                ? json.text
+                : null);
             if (delta) {
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === assistantId ? { ...msg, text: msg.text + delta } : msg
+                )
+              );
+            }
+            if (reasoningDelta) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantId
+                    ? { ...msg, reasoning: `${msg.reasoning || ""}${reasoningDelta}` }
+                    : msg
+                )
+              );
+            } else if (reasoningDone) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantId && !msg.reasoning
+                    ? { ...msg, reasoning: reasoningDone }
+                    : msg
                 )
               );
             }
@@ -377,6 +505,7 @@ export default function HomePage() {
           }
         });
       }
+      await refreshQuota();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
@@ -443,6 +572,7 @@ export default function HomePage() {
         id: `${message.role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         role: message.role,
         text: message.content,
+        thinkingEnabled: false,
       };
     }
     const textParts = message.content
@@ -461,6 +591,7 @@ export default function HomePage() {
       role: message.role,
       text: textParts,
       images: imageParts.length > 0 ? imageParts : undefined,
+      thinkingEnabled: false,
     };
   };
 
@@ -597,6 +728,7 @@ export default function HomePage() {
         username: result.data.user.username,
         email: result.data.user.email,
       });
+      setRemainingQuota(result.data.user.chatQuota ?? 50);
       antdMessage.success("登录成功");
       fetchHistoryList();
     } catch (error) {
@@ -626,6 +758,7 @@ export default function HomePage() {
         username: result.data.user.username,
         email: result.data.user.email,
       });
+      setRemainingQuota(result.data.user.chatQuota ?? 50);
       antdMessage.success("登录成功");
       fetchHistoryList();
     } catch (error) {
@@ -667,6 +800,7 @@ export default function HomePage() {
     clearAuthCookie();
     setIsAuthed(false);
     setAuthUser(null);
+    setRemainingQuota(null);
     setHistoryItems([]);
     setMessages([]);
     setAuthModalOpen(true);
@@ -675,99 +809,26 @@ export default function HomePage() {
 
   return (
     <div className="chat-root">
-      <Modal
+      <TitleEditModal
         open={titleModalOpen}
-        title="编辑标题"
+        value={titleEditValue}
+        onChange={setTitleEditValue}
         onOk={handleUpdateTitle}
         onCancel={() => setTitleModalOpen(false)}
-        okText="保存"
-        cancelText="取消"
-      >
-        <Input
-          value={titleEditValue}
-          onChange={(event) => setTitleEditValue(event.target.value)}
-          placeholder="请输入标题"
-        />
-      </Modal>
-      <Modal
+      />
+      <AuthModal
         open={authModalOpen}
-        title="登录后继续使用"
-        closable={false}
-        maskClosable={false}
-        keyboard={false}
-        footer={null}
-      >
-        <Segmented
-          block
-          options={[
-            { label: "密码登录", value: "password" },
-            { label: "邮箱登录", value: "email" },
-          ]}
-          value={authMode}
-          onChange={(value) => setAuthMode(value as "password" | "email")}
-          style={{ marginBottom: 16 }}
-        />
-        {authMode === "password" ? (
-          <Form form={authForm} layout="vertical" onFinish={handlePasswordLogin}>
-            <Form.Item
-              name="username"
-              label="用户名或邮箱"
-              rules={[{ required: true, message: "请输入用户名或邮箱" }]}
-            >
-              <Input placeholder="请输入用户名或邮箱" />
-            </Form.Item>
-            <Form.Item
-              name="password"
-              label="密码"
-              rules={[{ required: true, message: "请输入密码" }]}
-            >
-              <Input.Password placeholder="请输入密码" />
-            </Form.Item>
-            <Button type="primary" htmlType="submit" block loading={authLoading}>
-              登录
-            </Button>
-          </Form>
-        ) : (
-          <Form form={authForm} layout="vertical" onFinish={handleEmailLogin}>
-            <Form.Item
-              name="email"
-              label="邮箱"
-              rules={[
-                { required: true, message: "请输入邮箱" },
-                { type: "email", message: "邮箱格式不正确" },
-              ]}
-            >
-              <Input placeholder="请输入邮箱" />
-            </Form.Item>
-            <Form.Item
-              name="verificationCode"
-              label="验证码"
-              rules={[
-                { required: true, message: "请输入验证码" },
-                { len: 6, message: "验证码为6位数字" },
-              ]}
-            >
-              <Input
-                placeholder="请输入验证码"
-                maxLength={6}
-                suffix={
-                  <Button
-                    size="small"
-                    type="link"
-                    disabled={emailCountdown > 0 || sendingCode}
-                    onClick={handleSendEmailCode}
-                  >
-                    {emailCountdown > 0 ? `${emailCountdown}s` : "发送验证码"}
-                  </Button>
-                }
-              />
-            </Form.Item>
-            <Button type="primary" htmlType="submit" block loading={authLoading}>
-              登录
-            </Button>
-          </Form>
-        )}
-      </Modal>
+        onClose={() => setAuthModalOpen(false)}
+        authForm={authForm}
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        onPasswordLogin={handlePasswordLogin}
+        onEmailLogin={handleEmailLogin}
+        onSendCode={handleSendEmailCode}
+        authLoading={authLoading}
+        emailCountdown={emailCountdown}
+        sendingCode={sendingCode}
+      />
       <Layout className="chat-layout">
         <Sider
           width={280}
@@ -775,90 +836,21 @@ export default function HomePage() {
           breakpoint="lg"
           collapsedWidth={0}
         >
-          <div className="chat-sider-inner" style={{ padding: 24 }}>
-            <div>
-              <Title level={4} style={{ margin: 0 }}>
-                豆包 · Chat
-              </Title>
-              <Text type="secondary">日常对话 · 代码问答 · 拍照搜题</Text>
-            </div>
-
-            <Card size="small">
-              <Text type="secondary">当前模型</Text>
-              <div style={{ marginTop: 8 }}>
-                <Text strong>{model}</Text>
-              </div>
-              <Tag style={{ marginTop: 12 }} color={mode === "deep" ? "purple" : "blue"}>
-                {modeLabel} 模式
-              </Tag>
-            </Card>
-
-            <Card
-              size="small"
-              title="历史对话"
-              extra={
-                <Button size="small" icon={<PlusOutlined />} onClick={handleNewConversation}>
-                  新对话
-                </Button>
-              }
-            >
-              <Input.Search
-                placeholder="搜索历史"
-                allowClear
-                value={historySearch}
-                onChange={(event) => setHistorySearch(event.target.value)}
-                style={{ marginBottom: 12 }}
-              />
-              {historyItems.length === 0 ? (
-                <Empty description="暂无历史" />
-              ) : (
-                <List
-                  size="small"
-                  loading={historyLoading}
-                  dataSource={historyItems.filter((item) =>
-                    item.title.toLowerCase().includes(historySearch.toLowerCase())
-                  )}
-                  renderItem={(item) => (
-                    <List.Item
-                      actions={[
-                        <Tooltip key="edit" title="编辑标题">
-                          <Button
-                            size="small"
-                            type="text"
-                            icon={<EditOutlined />}
-                            onClick={() => openTitleEditor(item)}
-                          />
-                        </Tooltip>,
-                        <Popconfirm
-                          key="delete"
-                          title="确认删除该会话？"
-                          onConfirm={() => handleDeleteHistory(item.conversationId)}
-                        >
-                          <Button size="small" type="text" danger icon={<DeleteOutlined />} />
-                        </Popconfirm>,
-                      ]}
-                    >
-                      <Button
-                        type="text"
-                        onClick={() => loadConversation(item.conversationId)}
-                      >
-                        <div style={{ textAlign: "left" }}>
-                          <div style={{ fontWeight: 600 }}>{item.title}</div>
-                          <div style={{ fontSize: 12, color: "#6b7280" }}>
-                            {formatHistoryTime(item.updatedAt)}
-                          </div>
-                        </div>
-                      </Button>
-                    </List.Item>
-                  )}
-                />
-              )}
-            </Card>
-
-            <Text type="secondary" style={{ marginTop: "auto", fontSize: 12 }}>
-              API: {API_URL}
-            </Text>
-          </div>
+          <ChatSidebar
+            model={model}
+            mode={mode}
+            modeLabel={modeLabel}
+            historyItems={historyItems}
+            historyLoading={historyLoading}
+            historySearch={historySearch}
+            setHistorySearch={setHistorySearch}
+            onNewConversation={handleNewConversation}
+            onLoadConversation={loadConversation}
+            onEditTitle={openTitleEditor}
+            onDeleteHistory={handleDeleteHistory}
+            formatHistoryTime={formatHistoryTime}
+            apiUrl={API_URL}
+          />
         </Sider>
 
         <Layout>
@@ -873,6 +865,9 @@ export default function HomePage() {
               <div className="chat-user-meta">
                 <div className="chat-user-name">{authUser?.username || "未登录"}</div>
                 <div className="chat-user-email">{authUser?.email || "请先登录"}</div>
+                {isAuthed && remainingQuota !== null && (
+                  <div className="chat-user-quota">剩余 {remainingQuota} 次</div>
+                )}
               </div>
               <Avatar size={36} icon={<UserOutlined />} />
               <Button size="small" onClick={handleLogout} disabled={!isAuthed}>
@@ -890,190 +885,63 @@ export default function HomePage() {
               )}
 
               {messages.map((msg) => (
-                <div
+                <ChatMessageItem
                   key={msg.id}
-                  className={`chat-row ${msg.role === "user" ? "user" : ""}`}
-                >
-                  {msg.role === "assistant" && (
-                    <Avatar size={36} style={{ backgroundColor: "#5b5ce2" }}>
-                      豆
-                    </Avatar>
-                  )}
-                  <div
-                    className={`chat-bubble ${msg.role === "user" ? "user" : "assistant"
-                      }`}
-                  >
-                    {msg.role === "assistant" ? (
-                      msg.id === streamingId && !msg.text ? (
-                        <Space size={8}>
-                          <Spin size="small" />
-                          <Text type="secondary">豆包思考中...</Text>
-                        </Space>
-                      ) : (
-                        <Response
-                          className="chat-response"
-                          mode="streaming"
-                          isAnimating={isStreaming && msg.id === streamingId}
-                        >
-                          {msg.text || " "}
-                        </Response>
-                      )
-                    ) : msg.id === editTargetId ? (
-                      <div style={{ minWidth: 260 }}>
-                        <Input.TextArea
-                          value={inlineEditText}
-                          onChange={(event) => setInlineEditText(event.target.value)}
-                          autoSize={{ minRows: 2, maxRows: 6 }}
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter" || event.shiftKey) return;
-                            if ((event.nativeEvent as KeyboardEvent).isComposing) return;
-                            event.preventDefault();
-                            if (!isStreaming) {
-                              handleConfirmInlineEdit();
-                            }
-                          }}
-                        />
-                        {inlineEditImages.length > 0 && (
-                          <div className="chat-images" style={{ marginTop: 8 }}>
-                            {inlineEditImages.map((img) => (
-                              <img key={img.uid} src={img.url} alt={img.name} />
-                            ))}
-                          </div>
-                        )}
-                        <Space size={8} style={{ marginTop: 8 }}>
-                          <Button size="small" type="primary" onClick={handleConfirmInlineEdit}>
-                            重新发送
-                          </Button>
-                          <Button size="small" onClick={handleCancelInlineEdit}>
-                            取消
-                          </Button>
-                        </Space>
-                      </div>
-                    ) : (
-                      <Space align="start">
-                        <Text style={{ whiteSpace: "pre-wrap", color: "inherit" }}>
-                          {msg.text}
-                        </Text>
-                        {msg.id === lastUserId && (
-                          <Tooltip title="编辑并重新发送">
-                            <Button
-                              type="text"
-                              size="small"
-                              icon={<EditOutlined />}
-                              onClick={() => handleEditLast(msg)}
-                            />
-                          </Tooltip>
-                        )}
-                      </Space>
-                    )}
-                    {msg.images && msg.images.length > 0 && (
-                      <div className="chat-images">
-                        {msg.images.map((img) => (
-                          <img key={img.uid} src={img.url} alt={img.name} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {msg.role === "user" && (
-                    <Avatar size={36} icon={<UserOutlined />} />
-                  )}
-                </div>
+                  msg={msg}
+                  isStreaming={isStreaming}
+                  streamingId={streamingId}
+                  editTargetId={editTargetId}
+                  lastUserId={lastUserId}
+                  inlineEditText={inlineEditText}
+                  inlineEditImages={inlineEditImages}
+                  setInlineEditText={setInlineEditText}
+                  setInlineEditImages={setInlineEditImages}
+                  onEditLast={handleEditLast}
+                  onCancelInlineEdit={handleCancelInlineEdit}
+                  onConfirmInlineEdit={handleConfirmInlineEdit}
+                  renderTextWithUrls={renderTextWithUrls}
+                />
               ))}
 
             </div>
 
-            <Card className="chat-input-card" bodyStyle={{ padding: 16 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between" }}>
-                <Space wrap>
-                  <Tooltip title={isAuthed ? "上传图片" : "请先登录"}>
-                    <Upload {...uploadProps} disabled={!isAuthed}>
-                      <Button icon={<CloudUploadOutlined />} disabled={!isAuthed}>
-                        上传
-                      </Button>
-                    </Upload>
-                  </Tooltip>
-                  <Select
-                    value={model}
-                    onChange={(value) => setModel(value)}
-                    style={{ width: 220 }}
-                    options={modelOptions}
-                    optionRender={(option) => (
-                      <div>
-                        <Text>{option.data.label}</Text>
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>
-                          {option.data.desc}
-                        </div>
-                      </div>
-                    )}
-                  />
-                  <Segmented
-                    value={mode}
-                    onChange={(value) => setMode(value as ModeOption)}
-                    options={[
-                      { label: "深度", value: "deep" },
-                      { label: "快速", value: "fast" },
-                    ]}
-                  />
-                  <Badge status={isStreaming ? "processing" : "default"} text="流式输出" />
-                </Space>
-                <Space>
-                  <Button
-                    type="primary"
-                    icon={<SendOutlined />}
-                    loading={isStreaming}
-                    onClick={handleSend}
-                    disabled={!isAuthed}
-                  >
-                    发送
-                  </Button>
-                  {isStreaming && (
-                    <Button onClick={handleStop}>停止</Button>
-                  )}
-                </Space>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <Input.TextArea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="请输入内容，支持 Markdown/代码块/表格..."
-                  autoSize={{ minRows: 3, maxRows: 6 }}
-                  disabled={!isAuthed}
-                  onPaste={(event) => {
-                    const items = event.clipboardData?.items;
-                    if (!items || items.length === 0) return;
-                    const imageItems = Array.from(items).filter((item) =>
-                      item.type.startsWith("image/")
-                    );
-                    if (imageItems.length === 0) return;
-                    imageItems.forEach((item) => {
-                      const file = item.getAsFile();
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        setImages((prev) => [
-                          ...prev,
-                          {
-                            uid: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                            name: file.name || "pasted-image",
-                            url: String(reader.result),
-                          },
-                        ]);
-                      };
-                      reader.readAsDataURL(file);
-                    });
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" || event.shiftKey) return;
-                    if ((event.nativeEvent as KeyboardEvent).isComposing) return;
-                    event.preventDefault();
-                    if (!isStreaming) {
-                      handleSend();
-                    }
-                  }}
-                />
-              </div>
-            </Card>
+            <ChatInputCard
+              input={input}
+              setInput={setInput}
+              attachedFiles={attachedFiles}
+              setAttachedFiles={setAttachedFiles}
+              model={model}
+              setModel={setModel}
+              mode={mode}
+              setMode={setMode}
+              useWebSearch={useWebSearch}
+              setUseWebSearch={setUseWebSearch}
+              isStreaming={isStreaming}
+              onSend={handleSend}
+              onStop={handleStop}
+              isAuthed={isAuthed}
+              remainingQuota={remainingQuota}
+              uploadProps={uploadProps}
+              docUploadProps={docUploadProps}
+              onDrop={handleInputDrop}
+              isDraggingOver={isDraggingOver}
+              setIsDraggingOver={setIsDraggingOver}
+              extractUrlsFromText={extractUrlsFromText}
+              onPasteImage={(file) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setImages((prev) => [
+                    ...prev,
+                    {
+                      uid: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                      name: file.name || "pasted-image",
+                      url: String(reader.result),
+                    },
+                  ]);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
           </Content>
         </Layout>
       </Layout>

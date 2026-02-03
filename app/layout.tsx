@@ -6,6 +6,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Doubao Chat",
   description: "Doubao-inspired AI chat interface",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -15,6 +15,23 @@ body {
     "Noto Color Emoji", sans-serif;
 }
 
+:root {
+  --color-background: #ffffff;
+  --color-muted-foreground: #6b7280;
+}
+
+.text-muted-foreground {
+  color: #6b7280;
+}
+
+.text-foreground {
+  color: #111827;
+}
+
+.hover\:text-foreground:hover {
+  color: #111827;
+}
+
 .chat-root {
   height: 100vh;
   background: #f6f7fb;
@@ -90,6 +107,12 @@ body {
   text-overflow: ellipsis;
 }
 
+.chat-user-quota {
+  font-size: 12px;
+  color: #5b5ce2;
+  margin-top: 2px;
+}
+
 .chat-content {
   padding: 16px 24px 24px;
   display: flex;
@@ -133,6 +156,7 @@ body {
 .chat-bubble.assistant {
   background: #fff;
   color: #1f2329;
+  width: 100%;
 }
 
 .chat-images {
@@ -153,6 +177,12 @@ body {
   margin-top: 16px;
   border-radius: 16px;
   box-shadow: 0 8px 30px rgba(91, 92, 226, 0.12);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.chat-input-card-dragging {
+  border: 2px dashed #5b5ce2;
+  box-shadow: 0 8px 30px rgba(91, 92, 226, 0.2);
 }
 
 .chat-scrollbar::-webkit-scrollbar {
@@ -169,6 +199,51 @@ body {
   font-size: 14px;
 }
 
+.chat-response pre {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f6f8fa;
+  overflow-x: auto;
+}
+
+.chat-response code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 13px;
+}
+
 .ant-list-item-action{
   margin-left: 5px !important;
+}
+
+/* 用户消息中的链接：与普通文字区分 */
+.chat-bubble.user .chat-message-url {
+  color: rgba(255, 255, 255, 0.95);
+  text-decoration: underline;
+  word-break: break-all;
+}
+.chat-bubble.user .chat-message-url:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* 输入区检测到的链接 */
+.chat-input-url {
+  color: #5b5ce2;
+  text-decoration: none;
+}
+.chat-input-url:hover {
+  text-decoration: underline;
+}
+
+/* 已添加文档标签 */
+.chat-doc-tag,
+.chat-doc-tag-inline {
+  font-size: 12px;
+}
+.chat-bubble.user .chat-doc-tag-inline {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
 }
