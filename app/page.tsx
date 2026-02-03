@@ -72,6 +72,7 @@ export default function HomePage() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [inputCollapsed, setInputCollapsed] = useState(false);
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 1084px)");
@@ -1062,7 +1063,12 @@ export default function HomePage() {
           </Header>
 
           <Content className="chat-content">
-            <div ref={listRef} className="chat-list chat-scrollbar">
+            <div
+              ref={listRef}
+              className="chat-list chat-scrollbar"
+              onTouchStart={() => isMobile && setInputCollapsed(true)}
+              onScroll={() => isMobile && setInputCollapsed(true)}
+            >
               {messages.length === 0 && (
                 <div style={{ marginTop: 80, textAlign: "center" }}>
                   <Text type="secondary">现在开始对话吧，支持文字 + 图片。</Text>
@@ -1129,6 +1135,8 @@ export default function HomePage() {
                 reader.readAsDataURL(file);
               }}
               onMobileFileSelect={handleMobileFileSelect}
+              inputCollapsed={isMobile && inputCollapsed}
+              onExpandInput={() => setInputCollapsed(false)}
             />
           </Content>
         </Layout>

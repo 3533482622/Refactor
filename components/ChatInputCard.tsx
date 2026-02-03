@@ -56,6 +56,10 @@ export interface ChatInputCardProps {
   hasImages?: boolean;
   /** 手机端：从设备选择文件（图片+文档）后回调，每选一个文件调用一次 */
   onMobileFileSelect?: (file: File) => void;
+  /** 手机端：输入区是否收起（仅保留一行输入条） */
+  inputCollapsed?: boolean;
+  /** 手机端：点击收起后的输入条时展开 */
+  onExpandInput?: () => void;
 }
 
 export function ChatInputCard({
@@ -83,6 +87,8 @@ export function ChatInputCard({
   onPasteImage,
   hasImages = false,
   onMobileFileSelect,
+  inputCollapsed = false,
+  onExpandInput,
 }: ChatInputCardProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   // 使用 */* 让手机端弹出文件/浏览选择器而非仅相册，选完后仍按类型校验
@@ -96,6 +102,28 @@ export function ChatInputCard({
     : model === "doubao-seed-1-6-vision"
       ? "联网搜索（仅当前模型支持与深度思考同时使用）"
       : "仅 doubao-seed-1-6-vision 支持深度与联网同时使用";
+
+  if (inputCollapsed && onExpandInput) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onExpandInput}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onExpandInput();
+          }
+        }}
+        className="desktop:hidden mt-3 rounded-xl border border-solid border-[#d9d9d9] bg-white px-3 py-2.5 shadow-sm transition-colors hover:border-[#5b5ce2] hover:bg-gray-50/80 focus:outline-none focus:ring-2 focus:ring-[#5b5ce2]/30"
+        style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+      >
+        <span className="text-[#bfbfbf] text-sm">
+          {input.trim() ? `${input.slice(0, 36)}${input.length > 36 ? "…" : ""}` : "输入消息…"}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <Card
